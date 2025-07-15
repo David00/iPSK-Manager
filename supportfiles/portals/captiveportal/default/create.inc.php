@@ -33,21 +33,27 @@
 	if(isset($sanitizedInput['associationGroup']) && isset($sanitizedInput['macAddress']) && isset($sanitizedInput['endpointDescription']) && isset($sanitizedInput['emailAddress']) && isset($sanitizedInput['fullName'])) {	
 		$endpointGroupAuthorization = $ipskISEDB->getAuthorizationTemplatesbyEPGroupId($sanitizedInput['associationGroup']);
 		
+		// devicePsk holds the passphrase - prefixed with 'psk=' for the device, regardless of how it is created (device random, user random, or fixed)
+		// devicePassword holds the text passphrase, without the 'psk=' prefix.
+		$devicePsk = '';
+		$devicePassword = '';
+
 		if($endpointGroupAuthorization['ciscoAVPairPSK'] == "*devicerandom*"){
-			$randomPassword = $ipskISEDB->generateRandomPassword($endpointGroupAuthorization['pskLength']);
-			$randomPSK = "psk=".$randomPassword;
+			$devicePassword = $ipskISEDB->generateRandomPassword($endpointGroupAuthorization['pskLength']);
+			$devicePsk = "psk=".$devicePassword;			
 		}elseif($endpointGroupAuthorization['ciscoAVPairPSK'] == "*userrandom*"){
 			$userPsk = $ipskISEDB->getUserPreSharedKey($sanitizedInput['associationGroup'],$_SESSION['logonSID']);
 			if(!$userPsk){
-				$randomPassword = $ipskISEDB->generateRandomPassword($endpointGroupAuthorization['pskLength']);
-				$randomPSK = "psk=".$randomPassword;
+				$devicePassword = $ipskISEDB->generateRandomPassword($endpointGroupAuthorization['pskLength']);
+				$devicePsk = "psk=".$devicePassword;
 			}else{
 				$randomPassword = $userPsk;
-				$randomPSK = "psk=".$randomPassword;
+				$devicePsk = "psk=".$randomPassword;
+				$devicePassword = $randomPassword;
 			}
 		}else{
-			$randomPassword = $endpointGroupAuthorization['ciscoAVPairPSK'];
-			$randomPSK = "psk=".$userPsk;
+			$devicePassword = $endpointGroupAuthorization['ciscoAVPairPSK'];
+			$devicePsk= "psk=".$devicePassword;
 		}
 		
 		if($endpointGroupAuthorization['termLengthSeconds'] == 0){
@@ -62,7 +68,7 @@
 			$wifiSsid = $wirelessNetwork['ssidName'];
 		}
 		
-		if($endpointId = $ipskISEDB->addEndpoint($sanitizedInput['macAddress'], $sanitizedInput['fullName'], $sanitizedInput['endpointDescription'], $sanitizedInput['emailAddress'], $randomPSK, $endpointGroupAuthorization['vlan'], $endpointGroupAuthorization['dacl'], $duration, $_SESSION['logonSID'])){
+		if($endpointId = $ipskISEDB->addEndpoint($sanitizedInput['macAddress'], $sanitizedInput['fullName'], $sanitizedInput['endpointDescription'], $sanitizedInput['emailAddress'], $devicePsk, $endpointGroupAuthorization['vlan'], $endpointGroupAuthorization['dacl'], $duration, $_SESSION['logonSID'])){
 			
 			//LOG::Entry
 			$logData = $ipskISEDB->generateLogData(Array("sanitizedInput"=>$sanitizedInput));
@@ -110,7 +116,7 @@
 			$ipskISEDB->addLogEntry($logMessage, __FILE__, __FUNCTION__, __CLASS__, __METHOD__, __LINE__, $logData);
 			
 			$pageData['createComplete'] .= "<div class=\"text-danger fs-5\">Endpoint Association failed: Unable to create endpoint.</div><div class=\"mb-3\">Please contact a support technician for assistance.</div>";
-			$randomPassword = "";
+			$devicePassword = "";
 			$pageData['hidePskFlag'] = " d-none";
 		}
 	}
@@ -160,7 +166,7 @@
 								<div class="input-group-prepend">
 									<span class="input-group-text fw-bold shadow" id="basic-addon1">Pre-Shared Key</span>
 								</div>
-								<input type="text" id="presharedKey" class="form-control shadow" process-value="$randomPassword" value="$randomPassword" aria-label="password" aria-describedby="basic-addon1" data-lpignore="true" readonly>
+								<input type="text" id="presharedKey" class="form-control shadow" process-value="$devicePassword" value="$devicePassword" aria-label="password" aria-describedby="basic-addon1" data-lpignore="true" readonly>
 								<div class="input-group-append">
 									<span class="input-group-text fw-bold shadow" id="basic-addon1"><a id="copyPassword" href="#" data-clipboard-target="#presharedKey"><span id="passwordfeather" data-feather="copy"></span></a></span>
 								</div>
